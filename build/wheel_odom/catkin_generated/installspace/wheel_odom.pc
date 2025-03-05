@@ -1,0 +1,8 @@
+prefix=/home/will/Documents/GitHub/4260_Project/install
+
+Name: wheel_odom
+Description: Description of wheel_odom
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

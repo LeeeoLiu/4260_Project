@@ -1,0 +1,2 @@
+createmap:icpodom:keyboard_ctrl:wheel_odom
+-DCATKIN_DEVEL_PREFIX=/home/will/Documents/GitHub/4260_Project/devel -DCMAKE_INSTALL_PREFIX=/home/will/Documents/GitHub/4260_Project/install -G Unix Makefiles
