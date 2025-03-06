@@ -1,0 +1,8 @@
+prefix=/home/gp3/Leo_ws/install
+
+Name: icpodom
+Description: Description of icpodom
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

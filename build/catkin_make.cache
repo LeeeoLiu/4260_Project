@@ -1,0 +1,2 @@
+createmap:icpodom:keyboard_ctrl:wheel_odom
+-DCATKIN_DEVEL_PREFIX=/home/gp3/Leo_ws/devel -DCMAKE_INSTALL_PREFIX=/home/gp3/Leo_ws/install -G Unix Makefiles

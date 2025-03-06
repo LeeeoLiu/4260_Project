@@ -1,0 +1,8 @@
+prefix=/home/gp3/Leo_ws/devel
+
+Name: wheel_odom
+Description: Description of wheel_odom
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
