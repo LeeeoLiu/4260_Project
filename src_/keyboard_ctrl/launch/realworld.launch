@@ -1,0 +1,11 @@
+<launch>
+  <arg name="model" default="waffle" doc="model type [burger, waffle, waffle_pi]"/>
+
+  <param name="robot_description" command="$(find xacro)/xacro --inorder $(find turtlebot3_description)/urdf/turtlebot3_waffle.urdf.xacro" />
+
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find keyboard_ctrl)/rviz/wheel_odom.rviz" required="true" />
+
+  <!-- <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" /> -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen" />
+
+</launch>
