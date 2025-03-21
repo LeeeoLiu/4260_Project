@@ -38,15 +38,14 @@ geometry_msgs::PoseStamped cubicBezier(const geometry_msgs::PoseStamped& p0,
 
     geometry_msgs::PoseStamped pt;
     pt.header = p0.header;
-    pt.stamp = ros::Time::now();
-
 
     // step2: Interpolate the position based on the Bezier formula
-    
-    
+
+
+    pt.pose.orientation.w = 1.0;
 
     // step3: Return the interpolated point
-    return pt;
+
 }
 
 // Function to uniformly sample path points
@@ -149,26 +148,12 @@ nav_msgs::Path BezierSmoothing(const nav_msgs::Path& path_in)
 
         
         // Calculate the angle difference between p0 and p3 to determine the interpolation step size
-        
-        double angle_diff[];
-        angle_diff[0] = calculateAngle(sampled_path.poses[i], sampled_path.poses[i+1]);
-        angle_diff[1] = calculateAngle(sampled_path.poses[i+1], sampled_path.poses[i+2]);
-        angle_diff[2] = calculateAngle(sampled_path.poses[i+2], sampled_path.poses[i+3]);
+
 
         // Compute the number of interpolation points based on the angle difference
-        
-        uint8_t num_interpolations = 2; // at least two points for linear bezier curve
-        for (int j = 0; j<2; j++)
-        {
-            if (angle_diff[j]-angle_diff[j+1] != 0)
-                {num_interpolations += 1;}
-        }
 
         // Generate interpolated points along the cubic Bezier curve
-        if (num_interpolations == 2) // linear
-        {
 
-        }
     }
     // step 3, add the last point to ensure the path maintains its original endpoint
 
