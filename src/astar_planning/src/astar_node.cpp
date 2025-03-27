@@ -11,7 +11,6 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-
 nav_msgs::OccupancyGrid g_current_map;
 bool g_has_map = false;
 int g_width, g_height;
@@ -28,11 +27,11 @@ TODO:
 2. Interpolate the position based on the Bezier formula
 3. Return the interpolated point
 */
-geometry_msgs::PoseStamped cubicBezier(const geometry_msgs::PoseStamped& p0,
-                                       const geometry_msgs::PoseStamped& p1,
-                                       const geometry_msgs::PoseStamped& p2,
-                                       const geometry_msgs::PoseStamped& p3,
-                                       double t) 
+geometry_msgs::PoseStamped cubicBezier(const geometry_msgs::PoseStamped &p0,
+                                       const geometry_msgs::PoseStamped &p1,
+                                       const geometry_msgs::PoseStamped &p2,
+                                       const geometry_msgs::PoseStamped &p3,
+                                       double t)
 {
     // step1: Calculate the Bezier basis
 
@@ -40,16 +39,24 @@ geometry_msgs::PoseStamped cubicBezier(const geometry_msgs::PoseStamped& p0,
     pt.header = p0.header;
 
     // step2: Interpolate the position based on the Bezier formula
+    double b0 = std::pow(1 - t, 3);
+    double b1 = 3 * std::pow(1 - t, 2) * t;
+    double b2 = 3 * (1 - t) * std::pow(t, 2);
+    double b3 = std::pow(t, 3);
 
+    pt.pose.position.x = b0 * p0.pose.position.x + b1 * p1.pose.position.x +
+                         b2 * p2.pose.position.x + b3 * p3.pose.position.x;
+    pt.pose.position.y = b0 * p0.pose.position.y + b1 * p1.pose.position.y +
+                         b2 * p2.pose.position.y + b3 * p3.pose.position.y;
 
     pt.pose.orientation.w = 1.0;
 
     // step3: Return the interpolated point
-
+    return pt;
 }
 
 // Function to uniformly sample path points
-nav_msgs::Path uniformSamplePath(const nav_msgs::Path& path_in, int num_samples = 20)
+nav_msgs::Path uniformSamplePath(const nav_msgs::Path &path_in, int num_samples = 20)
 {
     nav_msgs::Path path_out;
     path_out.header = path_in.header;
@@ -66,8 +73,8 @@ nav_msgs::Path uniformSamplePath(const nav_msgs::Path& path_in, int num_samples 
 
     for (size_t i = 1; i < path_in.poses.size(); ++i)
     {
-        double dx = path_in.poses[i].pose.position.x - path_in.poses[i-1].pose.position.x;
-        double dy = path_in.poses[i].pose.position.y - path_in.poses[i-1].pose.position.y;
+        double dx = path_in.poses[i].pose.position.x - path_in.poses[i - 1].pose.position.x;
+        double dy = path_in.poses[i].pose.position.y - path_in.poses[i - 1].pose.position.y;
         double segment_length = std::sqrt(dx * dx + dy * dy);
         total_length += segment_length;
         cumulative_lengths.push_back(total_length);
@@ -85,7 +92,8 @@ nav_msgs::Path uniformSamplePath(const nav_msgs::Path& path_in, int num_samples 
         double target_length = i * segment_length;
         auto it = std::lower_bound(cumulative_lengths.begin(), cumulative_lengths.end(), target_length);
         int idx = std::distance(cumulative_lengths.begin(), it);
-        if (idx >= path_in.poses.size()) idx = path_in.poses.size() - 1;
+        if (idx >= path_in.poses.size())
+            idx = path_in.poses.size() - 1;
 
         if (idx > 0)
         {
@@ -97,9 +105,9 @@ nav_msgs::Path uniformSamplePath(const nav_msgs::Path& path_in, int num_samples 
             geometry_msgs::PoseStamped interpolated_pose;
             interpolated_pose.header = path_in.header;
             interpolated_pose.pose.position.x = path_in.poses[prev_idx].pose.position.x +
-                ratio * (path_in.poses[idx].pose.position.x - path_in.poses[prev_idx].pose.position.x);
+                                                ratio * (path_in.poses[idx].pose.position.x - path_in.poses[prev_idx].pose.position.x);
             interpolated_pose.pose.position.y = path_in.poses[prev_idx].pose.position.y +
-                ratio * (path_in.poses[idx].pose.position.y - path_in.poses[prev_idx].pose.position.y);
+                                                ratio * (path_in.poses[idx].pose.position.y - path_in.poses[prev_idx].pose.position.y);
             interpolated_pose.pose.orientation.w = 1.0;
 
             path_out.poses.push_back(interpolated_pose);
@@ -116,7 +124,7 @@ nav_msgs::Path uniformSamplePath(const nav_msgs::Path& path_in, int num_samples 
 }
 
 // calculate angle
-double calculateAngle(const geometry_msgs::PoseStamped& p1, const geometry_msgs::PoseStamped& p2)
+double calculateAngle(const geometry_msgs::PoseStamped &p1, const geometry_msgs::PoseStamped &p2)
 {
     return std::atan2(p2.pose.position.y - p1.pose.position.y, p2.pose.position.x - p1.pose.position.x);
 }
@@ -129,7 +137,7 @@ TODO:
 3. Add the last point to ensure the path maintains its original endpoint
 */
 
-nav_msgs::Path BezierSmoothing(const nav_msgs::Path& path_in)
+nav_msgs::Path BezierSmoothing(const nav_msgs::Path &path_in)
 {
     nav_msgs::Path path_out;
     path_out.header = path_in.header;
@@ -142,33 +150,43 @@ nav_msgs::Path BezierSmoothing(const nav_msgs::Path& path_in)
     // step 1, perform uniform sampling to ensure evenly distributed points
     int num_samples = 20;
 
+    nav_msgs::Path sampled_path = uniformSamplePath(path_in, num_samples);
+
     // step2, apply a sliding window approach to smooth the path using cubic Bezier curves
     for (size_t i = 0; i < sampled_path.poses.size() - 3; i += 3)
     {
 
-        
         // Calculate the angle difference between p0 and p3 to determine the interpolation step size
-
+        const auto &p0 = sampled_path.poses[i];
+        const auto &p1 = sampled_path.poses[i + 1];
+        const auto &p2 = sampled_path.poses[i + 2];
+        const auto &p3 = sampled_path.poses[i + 3];
 
         // Compute the number of interpolation points based on the angle difference
-
+        for (int j = 0; j <= 10; ++j) // Generate 10 points per segment
+        {
+            double t = j / 10.0; // t ranges from 0 to 1
+            path_out.poses.push_back(cubicBezier(p0, p1, p2, p3, t));
+        }
         // Generate interpolated points along the cubic Bezier curve
-
     }
     // step 3, add the last point to ensure the path maintains its original endpoint
+    path_out.poses.push_back(sampled_path.poses.back());
 
+    return path_out;
 }
 
 // coordinate transformation
-bool worldToMap(double wx, double wy, int& mx, int& my)
+bool worldToMap(double wx, double wy, int &mx, int &my)
 {
-    if (wx < g_origin_x || wy < g_origin_y) return false;
+    if (wx < g_origin_x || wy < g_origin_y)
+        return false;
     mx = static_cast<int>((wx - g_origin_x) / g_resolution);
     my = static_cast<int>((wy - g_origin_y) / g_resolution);
     return (mx >= 0 && mx < g_width && my >= 0 && my < g_height);
 }
 
-void mapToWorld(int mx, int my, double& wx, double& wy)
+void mapToWorld(int mx, int my, double &wx, double &wy)
 {
     wx = g_origin_x + (mx + 0.5) * g_resolution;
     wy = g_origin_y + (my + 0.5) * g_resolution;
@@ -185,20 +203,40 @@ void inflateObstacles()
     // Determine the inflation radius in grid cells
     const int inflate_cells = static_cast<int>(std::ceil(g_robot_radius / g_resolution));
     std::vector<int> inflated_map(g_width * g_height, 0);
-    
 
     // 1. Iterate through the occupancy grid
 
     // 2. Expand obstacles using a square region
+    for (int y = 0; y < g_height; ++y)
+    {
+        for (int x = 0; x < g_width; ++x)
+        {
+            int idx = y * g_width + x;
+            if (g_current_map.data[idx] >= 50)
+            {
+                for (int dy = -inflate_cells; dy <= inflate_cells; ++dy)
+                {
+                    for (int dx = -inflate_cells; dx <= inflate_cells; ++dx)
+                    {
+                        int nx = x + dx;
+                        int ny = y + dy;
+                        if (nx >= 0 && nx < g_width && ny >= 0 && ny < g_height)
+                        {
+                            int nidx = ny * g_width + nx;
+                            inflated_map[nidx] = 100;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-    
     // Update the global map with the inflated obstacles
     g_map_data = inflated_map;
 }
 
-
 // Build path
-void buildPath(const std::vector<int>& came_from, int goal_idx, std::vector<std::pair<int, int>>& path)
+void buildPath(const std::vector<int> &came_from, int goal_idx, std::vector<std::pair<int, int>> &path)
 {
     path.clear();
     while (goal_idx != -1)
@@ -220,7 +258,7 @@ step3: Set initial cost for the start node
 step4: A* search loop
 */
 
-bool aStarSearch(int start_x, int start_y, int goal_x, int goal_y, std::vector<std::pair<int, int>>& path)
+bool aStarSearch(int start_x, int start_y, int goal_x, int goal_y, std::vector<std::pair<int, int>> &path)
 {
     // 8 directions for movement (right, top-right, up, top-left, left, bottom-left, down, bottom-right)
     const int dx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
@@ -228,24 +266,33 @@ bool aStarSearch(int start_x, int start_y, int goal_x, int goal_y, std::vector<s
 
     // step1: Heuristic function (Euclidean distance)
 
+    auto heuristic = [goal_x, goal_y](int x, int y)
+    {
+        return std::sqrt(std::pow(x - goal_x, 2) + std::pow(y - goal_y, 2));
+    };
 
     // Convert (x, y) coordinates to 1D index for accessing the grid arrays
-    auto toIndex = [](int x, int y) { return y * g_width + x; };
+    auto toIndex = [](int x, int y)
+    { return y * g_width + x; };
 
     // step2: Initialize cost arrays and came_from array
+    std::vector<double> g_cost(g_width * g_height, std::numeric_limits<double>::infinity());
+    std::vector<double> f_cost(g_width * g_height, std::numeric_limits<double>::infinity());
+    std::vector<int> came_from(g_width * g_height, -1);
 
-    
     // Priority queue to select the node with the lowest f_cost (using std::greater for min-heap)
     std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>,
-                        std::greater<std::pair<double, int>>> open;
+                        std::greater<std::pair<double, int>>>
+        open;
 
     // Start and goal indices in the 1D array
     int start_idx = toIndex(start_x, start_y);
     int goal_idx = toIndex(goal_x, goal_y);
 
     // step3: Set initial cost for the start node
+    g_cost[start_idx] = 0.0;
+    f_cost[start_idx] = heuristic(start_x, start_y);
 
-    
     // Push the start node into the open list (priority queue)
     open.emplace(f_cost[start_idx], start_idx);
 
@@ -253,13 +300,43 @@ bool aStarSearch(int start_x, int start_y, int goal_x, int goal_y, std::vector<s
     while (!open.empty())
     {
         // Get the node with the lowest f_cost from the open list
-
+        auto current = open.top();
+        open.pop();
 
         // Get the coordinates (x, y) of the current node from the 1D index
+        int current_idx = current.second;
+        if (current_idx == goal_idx)
+        {
+            buildPath(came_from, goal_idx, path);
+            return true;
+        }
 
+        int x = current_idx % g_width;
+        int y = current_idx / g_width;
 
         // Explore all 8 possible neighbors
-       
+        for (int d = 0; d < 8; ++d)
+        {
+            int nx = x + dx[d];
+            int ny = y + dy[d];
+            if (nx < 0 || nx >= g_width || ny < 0 || ny >= g_height)
+                continue;
+
+            int neighbor_idx = toIndex(nx, ny);
+            if (g_map_data[neighbor_idx] != 0)
+                continue;
+
+            double move_cost = (d % 2 == 1) ? 1.4142 : 1.0;
+            double tentative_g = g_cost[current_idx] + move_cost;
+
+            if (tentative_g < g_cost[neighbor_idx])
+            {
+                came_from[neighbor_idx] = current_idx;
+                g_cost[neighbor_idx] = tentative_g;
+                f_cost[neighbor_idx] = tentative_g + heuristic(nx, ny);
+                open.emplace(f_cost[neighbor_idx], neighbor_idx);
+            }
+        }
     }
 
     // If the open list is empty and the goal has not been reached, no path exists
@@ -267,7 +344,7 @@ bool aStarSearch(int start_x, int start_y, int goal_x, int goal_y, std::vector<s
 }
 
 // map callback
-void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr &msg)
 {
     g_current_map = *msg;
     g_width = msg->info.width;
@@ -281,7 +358,7 @@ void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 }
 
 // goal callback
-void goalCallback(const geometry_msgs::PoseStamped::ConstPtr& goal_msg)
+void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &goal_msg)
 {
     if (!g_has_map)
     {
@@ -309,7 +386,7 @@ void goalCallback(const geometry_msgs::PoseStamped::ConstPtr& goal_msg)
     double goal_y = goal_msg->pose.position.y;
 
     int sx, sy, gx, gy;
-    if (!worldToMap(start_x, start_y, sx, sy) || 
+    if (!worldToMap(start_x, start_y, sx, sy) ||
         !worldToMap(goal_x, goal_y, gx, gy))
     {
         ROS_WARN("Invalid start/goal coordinates");
@@ -327,7 +404,7 @@ void goalCallback(const geometry_msgs::PoseStamped::ConstPtr& goal_msg)
     nav_msgs::Path raw_path;
     raw_path.header.frame_id = "map";
     raw_path.header.stamp = ros::Time::now();
-    for (auto& p : path_indices)
+    for (auto &p : path_indices)
     {
         geometry_msgs::PoseStamped pose;
         pose.header.frame_id = "map";
@@ -342,10 +419,9 @@ void goalCallback(const geometry_msgs::PoseStamped::ConstPtr& goal_msg)
     // smooth path
     nav_msgs::Path smooth_path = BezierSmoothing(raw_path);
     g_path_pub.publish(smooth_path);
-
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     ros::init(argc, argv, "astar_planner");
     ros::NodeHandle nh;
