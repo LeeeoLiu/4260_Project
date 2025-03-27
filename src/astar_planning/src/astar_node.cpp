@@ -137,41 +137,39 @@ TODO:
 3. Add the last point to ensure the path maintains its original endpoint
 */
 
-nav_msgs::Path BezierSmoothing(const nav_msgs::Path &path_in)
+nav_msgs::Path BezierSmoothing(const nav_msgs::Path &path_in) 
 {
     nav_msgs::Path path_out;
     path_out.header = path_in.header;
 
-    if (path_in.poses.size() < 4)
-    {
-        return path_in;
-    }
+    if (path_in.poses.size() < 4) return path_in;
 
-    // step 1, perform uniform sampling to ensure evenly distributed points
-    int num_samples = 20;
+    // Uniform sampling (correct)
+    nav_msgs::Path sampled_path = uniformSamplePath(path_in, 20);
 
-    nav_msgs::Path sampled_path = uniformSamplePath(path_in, num_samples);
-
-    // step2, apply a sliding window approach to smooth the path using cubic Bezier curves
-    for (size_t i = 0; i < sampled_path.poses.size() - 3; i += 3)
-    {
-
-        // Calculate the angle difference between p0 and p3 to determine the interpolation step size
+    // Sliding window with 1-step overlap (FIXED)
+    for (size_t i = 0; i + 3 < sampled_path.poses.size(); i++) {  // Changed i += 3 to i++
         const auto &p0 = sampled_path.poses[i];
-        const auto &p1 = sampled_path.poses[i + 1];
-        const auto &p2 = sampled_path.poses[i + 2];
-        const auto &p3 = sampled_path.poses[i + 3];
+        const auto &p1 = sampled_path.poses[i+1];
+        const auto &p2 = sampled_path.poses[i+2];
+        const auto &p3 = sampled_path.poses[i+3];
 
-        // Compute the number of interpolation points based on the angle difference
-        for (int j = 0; j <= 10; ++j) // Generate 10 points per segment
-        {
-            double t = j / 10.0; // t ranges from 0 to 1
+        // Add p0 only for the first segment (FIXED)
+        if (i == 0) path_out.poses.push_back(p0);
+
+        // Generate 10 interpolated points (correct)
+        for (int j = 1; j <= 10; j++) {
+            double t = j / 10.0;
             path_out.poses.push_back(cubicBezier(p0, p1, p2, p3, t));
         }
-        // Generate interpolated points along the cubic Bezier curve
     }
-    // step 3, add the last point to ensure the path maintains its original endpoint
-    path_out.poses.push_back(sampled_path.poses.back());
+
+    // Add last point (FIXED: only if not already added)
+    if (!sampled_path.poses.empty() && 
+        (path_out.poses.empty() || 
+         path_out.poses.back().pose.position.x != sampled_path.poses.back().pose.position.x)) {
+        path_out.poses.push_back(sampled_path.poses.back());
+    }
 
     return path_out;
 }
@@ -200,30 +198,23 @@ TODO:
 */
 void inflateObstacles()
 {
-    // Determine the inflation radius in grid cells
     const int inflate_cells = static_cast<int>(std::ceil(g_robot_radius / g_resolution));
     std::vector<int> inflated_map(g_width * g_height, 0);
 
     // 1. Iterate through the occupancy grid
-
-    // 2. Expand obstacles using a square region
-    for (int y = 0; y < g_height; ++y)
-    {
-        for (int x = 0; x < g_width; ++x)
-        {
+    for (int y = 0; y < g_height; ++y) {
+        for (int x = 0; x < g_width; ++x) {
             int idx = y * g_width + x;
-            if (g_current_map.data[idx] >= 50)
-            {
-                for (int dy = -inflate_cells; dy <= inflate_cells; ++dy)
-                {
-                    for (int dx = -inflate_cells; dx <= inflate_cells; ++dx)
-                    {
+            
+            // 2. Expand obstacles using a square region
+            if (g_current_map.data[idx] >= 50) { // If cell is an obstacle
+                for (int dy = -inflate_cells; dy <= inflate_cells; ++dy) {
+                    for (int dx = -inflate_cells; dx <= inflate_cells; ++dx) {
                         int nx = x + dx;
                         int ny = y + dy;
-                        if (nx >= 0 && nx < g_width && ny >= 0 && ny < g_height)
-                        {
+                        if (nx >= 0 && nx < g_width && ny >= 0 && ny < g_height) {
                             int nidx = ny * g_width + nx;
-                            inflated_map[nidx] = 100;
+                            inflated_map[nidx] = 100; // Mark as inflated obstacle
                         }
                     }
                 }
@@ -231,8 +222,14 @@ void inflateObstacles()
         }
     }
 
-    // Update the global map with the inflated obstacles
+    // Update the global map with original + inflated obstacles
     g_map_data = inflated_map;
+    // Also keep original obstacles
+    for (int i = 0; i < g_width * g_height; ++i) {
+        if (g_current_map.data[i] >= 50) {
+            g_map_data[i] = 100;
+        }
+    }
 }
 
 // Build path

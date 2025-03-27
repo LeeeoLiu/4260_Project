@@ -211,12 +211,12 @@ int main(int argc, char **argv)
     */
 
     // tuning PID param
-    private_nh.param("kp_heading", kp_heading_, *);
-    private_nh.param("ki_heading", ki_heading_, *);
-    private_nh.param("kd_heading", kd_heading_, *);
-    private_nh.param("kp_dist", kp_dist_, *);
-    private_nh.param("ki_dist", ki_dist_, *);
-    private_nh.param("kd_dist", kd_dist_, *);
+    private_nh.param("kp_heading", kp_heading_, 0.1);
+    private_nh.param("ki_heading", ki_heading_, 0.1);
+    private_nh.param("kd_heading", kd_heading_, 0.1);
+    private_nh.param("kp_dist", kp_dist_, 0.1);
+    private_nh.param("ki_dist", ki_dist_, 0.1);
+    private_nh.param("kd_dist", kd_dist_, 0.1);
 
     private_nh.param("max_linear_speed", max_linear_speed_, 0.1);
     private_nh.param("max_angular_speed", max_angular_speed_, 0.22);
