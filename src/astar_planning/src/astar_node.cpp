@@ -137,37 +137,42 @@ TODO:
 3. Add the last point to ensure the path maintains its original endpoint
 */
 
-nav_msgs::Path BezierSmoothing(const nav_msgs::Path &path_in) 
+nav_msgs::Path BezierSmoothing(const nav_msgs::Path &path_in)
 {
     nav_msgs::Path path_out;
     path_out.header = path_in.header;
 
-    if (path_in.poses.size() < 4) return path_in;
+    if (path_in.poses.size() < 4)
+        return path_in;
 
     // Uniform sampling (correct)
     nav_msgs::Path sampled_path = uniformSamplePath(path_in, 20);
 
     // Sliding window with 1-step overlap (FIXED)
-    for (size_t i = 0; i + 3 < sampled_path.poses.size(); i++) {  // Changed i += 3 to i++
+    for (size_t i = 0; i + 3 < sampled_path.poses.size(); i+=3)
+    {
         const auto &p0 = sampled_path.poses[i];
-        const auto &p1 = sampled_path.poses[i+1];
-        const auto &p2 = sampled_path.poses[i+2];
-        const auto &p3 = sampled_path.poses[i+3];
+        const auto &p1 = sampled_path.poses[i + 1];
+        const auto &p2 = sampled_path.poses[i + 2];
+        const auto &p3 = sampled_path.poses[i + 3];
 
         // Add p0 only for the first segment (FIXED)
-        if (i == 0) path_out.poses.push_back(p0);
+        if (i == 0)
+            path_out.poses.push_back(p0);
 
         // Generate 10 interpolated points (correct)
-        for (int j = 1; j <= 10; j++) {
+        for (int j = 1; j <= 10; j++)
+        {
             double t = j / 10.0;
             path_out.poses.push_back(cubicBezier(p0, p1, p2, p3, t));
         }
     }
 
     // Add last point (FIXED: only if not already added)
-    if (!sampled_path.poses.empty() && 
-        (path_out.poses.empty() || 
-         path_out.poses.back().pose.position.x != sampled_path.poses.back().pose.position.x)) {
+    if (!sampled_path.poses.empty() &&
+        (path_out.poses.empty() ||
+         path_out.poses.back().pose.position.x != sampled_path.poses.back().pose.position.x))
+    {
         path_out.poses.push_back(sampled_path.poses.back());
     }
 
@@ -202,17 +207,23 @@ void inflateObstacles()
     std::vector<int> inflated_map(g_width * g_height, 0);
 
     // 1. Iterate through the occupancy grid
-    for (int y = 0; y < g_height; ++y) {
-        for (int x = 0; x < g_width; ++x) {
+    for (int y = 0; y < g_height; ++y)
+    {
+        for (int x = 0; x < g_width; ++x)
+        {
             int idx = y * g_width + x;
-            
+
             // 2. Expand obstacles using a square region
-            if (g_current_map.data[idx] >= 50) { // If cell is an obstacle
-                for (int dy = -inflate_cells; dy <= inflate_cells; ++dy) {
-                    for (int dx = -inflate_cells; dx <= inflate_cells; ++dx) {
+            if (g_current_map.data[idx] == 100)
+            { // If cell is an obstacle
+                for (int dy = -inflate_cells; dy <= inflate_cells; ++dy)
+                {
+                    for (int dx = -inflate_cells; dx <= inflate_cells; ++dx)
+                    {
                         int nx = x + dx;
                         int ny = y + dy;
-                        if (nx >= 0 && nx < g_width && ny >= 0 && ny < g_height) {
+                        if (nx >= 0 && nx < g_width && ny >= 0 && ny < g_height)
+                        {
                             int nidx = ny * g_width + nx;
                             inflated_map[nidx] = 100; // Mark as inflated obstacle
                         }
@@ -225,8 +236,10 @@ void inflateObstacles()
     // Update the global map with original + inflated obstacles
     g_map_data = inflated_map;
     // Also keep original obstacles
-    for (int i = 0; i < g_width * g_height; ++i) {
-        if (g_current_map.data[i] >= 50) {
+    for (int i = 0; i < g_width * g_height; ++i)
+    {
+        if (g_current_map.data[i] >= 50)
+        {
             g_map_data[i] = 100;
         }
     }
@@ -255,53 +268,53 @@ step3: Set initial cost for the start node
 step4: A* search loop
 */
 
-bool aStarSearch(int start_x, int start_y, int goal_x, int goal_y, std::vector<std::pair<int, int>> &path)
+bool aStarSearch(int start_x, int start_y, int goal_x, int goal_y,
+                 std::vector<std::pair<int, int>> &path)
 {
-    // 8 directions for movement (right, top-right, up, top-left, left, bottom-left, down, bottom-right)
+    // Movement directions (8-connected grid)
     const int dx[8] = {1, 1, 0, -1, -1, -1, 0, 1};
     const int dy[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-
-    // step1: Heuristic function (Euclidean distance)
+    const double SQRT2 = 1.41421356237;
 
     auto heuristic = [goal_x, goal_y](int x, int y)
     {
-        return std::sqrt(std::pow(x - goal_x, 2) + std::pow(y - goal_y, 2));
+        return 1.001 * std::sqrt(std::pow(x - goal_x, 2) + std::pow(y - goal_y, 2));
     };
 
-    // Convert (x, y) coordinates to 1D index for accessing the grid arrays
-    auto toIndex = [](int x, int y)
-    { return y * g_width + x; };
+    auto toIndex = [](int x, int y) { return y * g_width + x; };
 
-    // step2: Initialize cost arrays and came_from array
+    // Initialize data structures
     std::vector<double> g_cost(g_width * g_height, std::numeric_limits<double>::infinity());
     std::vector<double> f_cost(g_width * g_height, std::numeric_limits<double>::infinity());
     std::vector<int> came_from(g_width * g_height, -1);
 
-    // Priority queue to select the node with the lowest f_cost (using std::greater for min-heap)
-    std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>,
+    // Priority queue (min-heap)
+    std::priority_queue<std::pair<double, int>,
+                        std::vector<std::pair<double, int>>,
                         std::greater<std::pair<double, int>>>
         open;
 
-    // Start and goal indices in the 1D array
     int start_idx = toIndex(start_x, start_y);
     int goal_idx = toIndex(goal_x, goal_y);
 
-    // step3: Set initial cost for the start node
-    g_cost[start_idx] = 0.0;
-    f_cost[start_idx] = heuristic(start_x, start_y);
+    // // Validate start/goal
+    // if (g_map_data[start_idx] != 0 || g_map_data[goal_idx] != 0)
+    // {
+    //     ROS_WARN("Invalid start/goal (start: %d, goal: %d)",
+    //              g_map_data[start_idx], g_map_data[goal_idx]);
+    //     return false;
+    // }
 
-    // Push the start node into the open list (priority queue)
+    g_cost[start_idx] = 0;
+    f_cost[start_idx] = heuristic(start_x, start_y);
     open.emplace(f_cost[start_idx], start_idx);
 
-    // step4: A* search loop
     while (!open.empty())
     {
-        // Get the node with the lowest f_cost from the open list
         auto current = open.top();
         open.pop();
-
-        // Get the coordinates (x, y) of the current node from the 1D index
         int current_idx = current.second;
+
         if (current_idx == goal_idx)
         {
             buildPath(came_from, goal_idx, path);
@@ -311,32 +324,38 @@ bool aStarSearch(int start_x, int start_y, int goal_x, int goal_y, std::vector<s
         int x = current_idx % g_width;
         int y = current_idx / g_width;
 
-        // Explore all 8 possible neighbors
         for (int d = 0; d < 8; ++d)
         {
             int nx = x + dx[d];
             int ny = y + dy[d];
+
+            // Boundary check
             if (nx < 0 || nx >= g_width || ny < 0 || ny >= g_height)
                 continue;
 
             int neighbor_idx = toIndex(nx, ny);
+
+            // Obstacle/unknown check
             if (g_map_data[neighbor_idx] != 0)
                 continue;
 
-            double move_cost = (d % 2 == 1) ? 1.4142 : 1.0;
+            double move_cost = (d % 2 == 1) ? SQRT2 : 1.0;
             double tentative_g = g_cost[current_idx] + move_cost;
 
             if (tentative_g < g_cost[neighbor_idx])
             {
                 came_from[neighbor_idx] = current_idx;
                 g_cost[neighbor_idx] = tentative_g;
-                f_cost[neighbor_idx] = tentative_g + heuristic(nx, ny);
-                open.emplace(f_cost[neighbor_idx], neighbor_idx);
+                f_cost[neighbor_idx] = g_cost[neighbor_idx] + heuristic(nx, ny);
+
+                // Add tie-breaker to prioritize paths closer to goal
+                double tie_breaker = 1.0 + (heuristic(nx, ny) / 1000.0);
+                open.emplace(f_cost[neighbor_idx] + tie_breaker, neighbor_idx);
             }
         }
     }
 
-    // If the open list is empty and the goal has not been reached, no path exists
+    ROS_WARN("No path found after exploring %d nodes", (int)open.size());
     return false;
 }
 
@@ -396,6 +415,18 @@ void goalCallback(const geometry_msgs::PoseStamped::ConstPtr &goal_msg)
         ROS_WARN("A* search failed");
         return;
     }
+
+
+    // After aStarSearch():
+    if (path_indices.empty())
+    {
+        ROS_ERROR("Empty path returned!");
+    }
+    else
+    {
+        ROS_INFO("Path found with %zu waypoints", path_indices.size());
+    }
+
 
     // generate path
     nav_msgs::Path raw_path;
